@@ -1,0 +1,75 @@
+# docker compose up --build
+#   API        http://localhost:8000/docs
+#   Dashboard  http://localhost:8501
+#   MLflow UI  http://localhost:5000   (profile "mlflow": docker compose --profile mlflow up)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mai13
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mai13_local_only}
+      POSTGRES_DB: mai13
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mai13 -d mai13"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://mai13:${POSTGRES_PASSWORD:-mai13_local_only}@db:5432/mai13
+      ARTIFACT_DIR: /app/artifacts
+      DATASET_DIR: /app/datasets
+      REPORTS_DIR: /app/reports
+      MLFLOW_TRACKING_URI: sqlite:////app/mlruns/mlflow.db
+      MLFLOW_ARTIFACT_DIR: /app/mlruns/artifacts
+      CORS_ORIGINS: '["http://localhost:8501"]'
+    ports:
+      - "8000:8000"
+    volumes:
+      - artifacts:/app/artifacts
+      - datasets:/app/datasets
+      - reports:/app/reports
+      - mlruns:/app/mlruns
+      - hf-models:/models
+    depends_on:
+      db:
+        condition: service_healthy
+
+  dashboard:
+    build: .
+    command: ["streamlit", "run", "frontend/app.py", "--server.address=0.0.0.0", "--server.port=8501",
+              "--browser.gatherUsageStats=false"]
+    environment:
+      API_BASE_URL: http://api:8000
+      FRONTEND_API_KEY: ${FRONTEND_API_KEY:-}
+    ports:
+      - "8501:8501"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8501/_stcore/health"]
+    depends_on:
+      - api
+
+  mlflow:
+    profiles: ["mlflow"]
+    image: python:3.11-slim
+    # Same MLflow version as requirements.lock, so the UI understands the tracking schema.
+    command: ["sh", "-c", "pip install -q mlflow==3.17.0 && mlflow ui --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:////mlruns/mlflow.db"]
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlruns:/mlruns
+
+volumes:
+  pgdata:
+  artifacts:
+  datasets:
+  reports:
+  mlruns:
+  hf-models:

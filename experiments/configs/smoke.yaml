@@ -1,0 +1,34 @@
+# Quick end-to-end check with real models (~5-10 min on a laptop CPU).
+name: smoke
+description: Small real-model run to verify the full pipeline (not for drawing conclusions).
+experiment_type: full
+seed: 13
+dataset:
+  source: c4_realnewslike
+  n_samples: 24
+  prompt_words: 40
+  continuation_words: 100
+generator:
+  model_name: Qwen/Qwen2.5-0.5B
+  max_new_tokens: 120
+  min_new_tokens: 100
+  temperature: 0.8
+  top_p: 0.95
+  batch_size: 8
+watermarks:
+  - method: kgw
+    config: {gamma: 0.25, delta: 2.0, z_threshold: 4.0}
+  - method: zero_width
+attacks:
+  - name: truncation
+    config: {keep_fraction: 0.5}
+  - name: formatting
+    config: {operations: [normalize_unicode, collapse_whitespace]}
+detectors:
+  - name: tfidf_lr
+    is_baseline: true
+evaluation:
+  target_fprs: [0.05, 0.1]
+  primary_fpr: 0.1
+  n_bootstrap: 200
+  perplexity: false

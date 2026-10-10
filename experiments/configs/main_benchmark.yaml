@@ -1,0 +1,56 @@
+# MAI-13 main benchmark (text modality).
+#  - Baseline comparison: TF-IDF+LR (baseline) vs LM-feature classifier vs zero-shot Binoculars.
+#  - Robustness / failure-mode study: KGW vs Unigram vs zero-width baseline under 12 attacks.
+# Costly model-based attacks run on a fixed, seeded subset of test documents (max_groups).
+name: main_benchmark
+description: >
+  KGW and Unigram generation-time watermarks (Qwen2.5-0.5B, gamma=0.25, delta=2) and a zero-width
+  format baseline, attacked by edits, truncation, formatting, lexical substitution, back-translation
+  and LLM paraphrasing; AI-vs-human classifiers trained on unwatermarked text and compared with a
+  TF-IDF baseline. C4 realnewslike prompts (50 words) and human continuations (150 words).
+experiment_type: full
+seed: 42
+dataset:
+  source: c4_realnewslike
+  n_samples: 300
+  prompt_words: 50
+  continuation_words: 150
+  split_fractions: {train: 0.6, val: 0.2, test: 0.2}
+generator:
+  model_name: Qwen/Qwen2.5-0.5B
+  max_new_tokens: 200
+  min_new_tokens: 150
+  temperature: 0.8
+  top_p: 0.95
+  batch_size: 8
+watermarks:
+  - method: kgw
+    config: {gamma: 0.25, delta: 2.0, context_width: 1, z_threshold: 4.0}
+  - method: unigram
+    config: {gamma: 0.25, delta: 2.0, z_threshold: 4.0}
+  - method: zero_width
+attacks:
+  - {name: truncation, label: truncate_50pct, config: {keep_fraction: 0.5}}
+  - {name: truncation, label: truncate_25words, config: {keep_fraction: null, max_words: 25}}
+  - {name: word_deletion, label: delete_10pct, config: {rate: 0.1}}
+  - {name: word_deletion, label: delete_30pct, config: {rate: 0.3}}
+  - {name: word_swap, label: swap_10pct, config: {rate: 0.1}}
+  - {name: char_noise, label: typos_10pct, config: {rate: 0.1}}
+  - {name: formatting, label: normalize_format, config: {operations: [normalize_unicode, collapse_whitespace]}}
+  - {name: formatting, label: homoglyphs_10pct, config: {operations: [homoglyphs], homoglyph_rate: 0.1}}
+  - {name: lexical_substitution, label: lexical_20pct, config: {rate: 0.2}}
+  - {name: back_translation, label: backtranslate_de, config: {pivot_language: de}, max_groups: 40}
+  - {name: paraphrase, label: paraphrase_local, config: {provider: hf_local, temperature: 0.7}, max_groups: 25}
+  - {name: paraphrase, label: paraphrase_gemini, config: {provider: gemini, temperature: 0.7}, max_groups: 40}
+detectors:
+  - {name: tfidf_lr, is_baseline: true}
+  - {name: lm_features_lr, params: {observer: gpt2, performer: distilgpt2}}
+  - {name: binoculars, params: {observer: gpt2, performer: distilgpt2}}
+evaluation:
+  target_fprs: [0.01, 0.05]
+  primary_fpr: 0.05
+  n_bootstrap: 1000
+  semantic_similarity: true
+  perplexity: true
+  oracle_model: gpt2-medium
+  quality_max_samples: 100

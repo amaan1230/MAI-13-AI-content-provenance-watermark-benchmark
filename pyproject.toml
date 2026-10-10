@@ -1,0 +1,28 @@
+[project]
+name = "mai13"
+version = "0.1.0"
+description = "MAI-13: AI Content Provenance and Watermark Robustness Benchmark Across Modalities"
+requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "MIT" }
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["backend/db/migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "BLE"]
+ignore = ["S101", "S311", "S603", "S607", "B008", "S608", "E731", "S301"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "BLE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: tests that exercise multiple components or the HTTP API",
+    "slow: tests that download models or run longer than a few seconds",
+    "postgres: tests that require a PostgreSQL server (TEST_POSTGRES_URL)",
+]
+filterwarnings = ["ignore::DeprecationWarning", "ignore::FutureWarning", "ignore::UserWarning"]
